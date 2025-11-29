@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Suppliers - Inventory Management System</title>
+  <style>
+    :root{
+      --bg:#f4f6f8;
+      --nav:#2d3436;
+      --accent:#0984e3;
+      --muted:#6b7280;
+      --card:white;
+      --success:#00b894;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter, 'Segoe UI', Roboto, sans-serif; margin:0; background:var(--bg); color:#111;}
+    .navbar{background:var(--nav); color:white; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;}
+    .brand{font-weight:700; font-size:18px;}
+    .nav-actions{display:flex; gap:8px; align-items:center;}
+    .nav-actions button{background:transparent; border:1px solid rgba(255,255,255,0.08); color:white; padding:8px 12px; border-radius:8px; cursor:pointer;}
+    .nav-actions button:hover{background:rgba(255,255,255,0.03)}
+    .container{padding:28px; max-width:1100px; margin:18px auto;}
+    .card{background:var(--card); border-radius:10px; padding:18px; box-shadow:0 6px 18px rgba(15,23,42,0.06); margin-bottom:18px;}
+    h1,h2{margin:0 0 12px 0;}
+    .grid{display:grid; gap:12px;}
+    .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+    .btn{display:inline-block; padding:8px 12px; border-radius:8px; border:none; cursor:pointer;}
+    .btn.primary{background:var(--accent); color:white;}
+    .btn.ghost{background:transparent; border:1px solid #e6e6e6;}
+    table{width:100%; border-collapse:collapse;}
+    th,td{padding:12px 10px; text-align:left; border-bottom:1px solid #f0f0f0;}
+    th{background:linear-gradient(90deg, rgba(9,132,227,0.15), rgba(9,132,227,0.06));}
+    input,select,textarea{width:100%; padding:10px; border:1px solid #e6e6e6; border-radius:8px;}
+    footer{text-align:center; padding:14px; color:var(--muted); margin-top:20px;}
+    .small{font-size:13px; color:var(--muted)}
+    .actions button{margin-right:8px;}
+    @media(max-width:720px){.grid.cols-3{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">Inventory Management System</div>
+    <div class="nav-actions">
+      <button onclick="go('index.html')">Home</button>
+      <button onclick="go('view-items.html')">View Items</button>
+      <button onclick="go('add-item.html')">Add Item</button>
+      <button onclick="go('suppliers.html')">Suppliers</button>
+      <button id="exportBtn" onclick="exportJSON()">Export JSON</button>
+      <button id="importBtn" onclick="document.getElementById('fileInput').click()">Import JSON</button>
+      <input type="file" id="fileInput" accept="application/json" style="display:none" onchange="handleImport(event)">
+    </div>
+  </div>
+  <script>
+    function go(path){ window.location.href = path; }
+
+    // Shared storage helpers
+    function getStoredItems(){
+      const raw = localStorage.getItem('items');
+      if(!raw) return [];
+      try{ return JSON.parse(raw); } catch(e){ console.error('parse items',e); return []; }
+    }
+    function saveItems(items){ localStorage.setItem('items', JSON.stringify(items)); }
+
+    function getStoredSuppliers(){
+      const raw = localStorage.getItem('suppliers');
+      if(!raw) return [];
+      try{ return JSON.parse(raw); } catch(e){ console.error('parse suppliers',e); return []; }
+    }
+    function saveSuppliers(suppliers){ localStorage.setItem('suppliers', JSON.stringify(suppliers)); }
+
+    function exportJSON(){
+      const payload = { exportedAt: new Date().toISOString(), items: getStoredItems(), suppliers: getStoredSuppliers() };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      const name = 'inventory_export_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.json';
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function handleImport(ev){
+      const f = ev.target.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=> {
+        try{
+          const data = JSON.parse(reader.result);
+          if(!confirm('Replace local data with imported file? Click OK to replace, Cancel to merge.')) {
+            // merge
+            if(Array.isArray(data.items)) {
+              const existingItems = getStoredItems();
+              const merged = existingItems.concat(data.items.filter(it=> !existingItems.some(e=>e.id===it.id)));
+              saveItems(merged);
+            }
+            if(Array.isArray(data.suppliers)) {
+              const existing = getStoredSuppliers();
+              const merged = existing.concat(data.suppliers.filter(s=> !existing.some(e=>e.id===s.id)));
+              saveSuppliers(merged);
+            }
+            alert('Merged imported data.');
+            return;
+          }
+          // replace
+          if(Array.isArray(data.items)) saveItems(data.items); else saveItems([]);
+          if(Array.isArray(data.suppliers)) saveSuppliers(data.suppliers); else saveSuppliers([]);
+          alert('Imported and replaced data successfully.');
+          location.reload();
+        }catch(e){
+          alert('Failed to parse JSON: ' + e.message);
+        }
+      };
+      reader.readAsText(f);
+      ev.target.value = '';
+    }
+  </script>
+
+  <div class="container card">
+    <h2>Suppliers</h2>
+    <div style="display:flex; gap:12px; align-items:center; margin-top:12px; margin-bottom:12px;">
+      <input id="searchSup" placeholder="Search suppliers..." oninput="searchSuppliers()" style="max-width:320px;">
+      <button class="btn primary" onclick="showAdd()">Add Supplier</button>
+    </div>
+
+    <div id="listArea" style="overflow-x:auto">
+      <table id="suppliersTable">
+        <thead><tr><th>Supplier ID</th><th>Name</th><th>Contact</th><th>Phone</th><th>Email</th><th>Address</th><th>Actions</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="addArea" style="display:none; margin-top:14px">
+      <h3>Add Supplier</h3>
+      <form onsubmit="return saveSupplier(event)">
+        <label>Supplier ID</label>
+        <input id="supId" required>
+        <label style="margin-top:8px">Name</label>
+        <input id="supName" required>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px">
+          <div><label>Phone</label><input id="supPhone"></div>
+          <div><label>Email</label><input id="supEmail" type="email"></div>
+        </div>
+        <label style="margin-top:8px">Address</label>
+        <input id="supAddress">
+        <div style="margin-top:10px" class="actions">
+          <button type="submit" class="btn primary">Save Supplier</button>
+          <button type="button" class="btn ghost" onclick="hideAdd()">Close</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="container"><footer>© 2025 Inventory Management System | All Rights Reserved</footer></div>
+
+<script>
+  function showAdd(){ document.getElementById('addArea').style.display='block'; }
+  function hideAdd(){ document.getElementById('addArea').style.display='none'; }
+
+  function loadSuppliers(){
+    const suppliers = getStoredSuppliers();
+    const tbody = document.querySelector('#suppliersTable tbody');
+    tbody.innerHTML = '';
+    if(suppliers.length === 0){
+      tbody.innerHTML = '<tr><td colspan="7" class="small">No suppliers yet.</td></tr>';
+      return;
+    }
+    suppliers.forEach(s=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${s.id||''}</td><td>${s.name||''}</td><td>${s.contact||''}</td><td>${s.phone||''}</td><td>${s.email||''}</td><td>${s.address||''}</td>
+        <td><button onclick="editSupplier('${s.id}')">Edit</button> <button onclick="deleteSupplier('${s.id}')">Delete</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function saveSupplier(e){
+    e.preventDefault();
+    const id = document.getElementById('supId').value.trim();
+    const name = document.getElementById('supName').value.trim();
+    const phone = document.getElementById('supPhone').value.trim();
+    const email = document.getElementById('supEmail').value.trim();
+    const address = document.getElementById('supAddress').value.trim();
+    if(!id || !name){ alert('Please fill required'); return false; }
+    const suppliers = getStoredSuppliers();
+    const existing = suppliers.find(s=> s.id === id);
+    if(existing){
+      existing.name = name; existing.phone = phone; existing.email = email; existing.address = address;
+    } else {
+      suppliers.push({id, name, contact:'', phone, email, address});
+    }
+    saveSuppliers(suppliers);
+    hideAdd();
+    loadSuppliers();
+    populateSupplierSelects();
+    return false;
+  }
+
+  function deleteSupplier(id){
+    if(!confirm('Delete supplier ' + id + '?')) return;
+    let suppliers = getStoredSuppliers();
+    suppliers = suppliers.filter(s=> s.id !== id);
+    saveSuppliers(suppliers);
+    loadSuppliers();
+    populateSupplierSelects();
+  }
+
+  function editSupplier(id){
+    const suppliers = getStoredSuppliers();
+    const s = suppliers.find(x=> x.id === id);
+    if(!s) return;
+    showAdd();
+    document.getElementById('supId').value = s.id;
+    document.getElementById('supId').disabled = true;
+    document.getElementById('supName').value = s.name;
+    document.getElementById('supPhone').value = s.phone || '';
+    document.getElementById('supEmail').value = s.email || '';
+    document.getElementById('supAddress').value = s.address || '';
+  }
+
+  function searchSuppliers(){
+    const q = document.getElementById('searchSup').value.toLowerCase();
+    document.querySelectorAll('#suppliersTable tbody tr').forEach(row=>{
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+
+  // helper for other pages
+  function populateSupplierSelects(){
+    // find select by id on page if exists
+    const sel = document.getElementById('supplierSelect');
+    if(sel){
+      const suppliers = getStoredSuppliers();
+      sel.innerHTML = '<option value="">— none —</option>' + suppliers.map(s=> `<option value="${s.name}">${s.name}</option>`).join('');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{ loadSuppliers(); populateSupplierSelects(); });
+</script>
+</body>
+</html>

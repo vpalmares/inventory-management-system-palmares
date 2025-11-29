@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Home - Inventory Management System</title>
+  <style>
+    :root{
+      --bg:#f4f6f8;
+      --nav:#2d3436;
+      --accent:#0984e3;
+      --muted:#6b7280;
+      --card:white;
+      --success:#00b894;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter, 'Segoe UI', Roboto, sans-serif; margin:0; background:var(--bg); color:#111;}
+    .navbar{background:var(--nav); color:white; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;}
+    .brand{font-weight:700; font-size:18px;}
+    .nav-actions{display:flex; gap:8px; align-items:center;}
+    .nav-actions button{background:transparent; border:1px solid rgba(255,255,255,0.08); color:white; padding:8px 12px; border-radius:8px; cursor:pointer;}
+    .nav-actions button:hover{background:rgba(255,255,255,0.03)}
+    .container{padding:28px; max-width:1100px; margin:18px auto;}
+    .card{background:var(--card); border-radius:10px; padding:18px; box-shadow:0 6px 18px rgba(15,23,42,0.06); margin-bottom:18px;}
+    h1,h2{margin:0 0 12px 0;}
+    .grid{display:grid; gap:12px;}
+    .grid.cols-3{grid-template-columns:repeat(3,1fr)}
+    .btn{display:inline-block; padding:8px 12px; border-radius:8px; border:none; cursor:pointer;}
+    .btn.primary{background:var(--accent); color:white;}
+    .btn.ghost{background:transparent; border:1px solid #e6e6e6;}
+    table{width:100%; border-collapse:collapse;}
+    th,td{padding:12px 10px; text-align:left; border-bottom:1px solid #f0f0f0;}
+    th{background:linear-gradient(90deg, rgba(9,132,227,0.15), rgba(9,132,227,0.06));}
+    input,select,textarea{width:100%; padding:10px; border:1px solid #e6e6e6; border-radius:8px;}
+    footer{text-align:center; padding:14px; color:var(--muted); margin-top:20px;}
+    .small{font-size:13px; color:var(--muted)}
+    .actions button{margin-right:8px;}
+    @media(max-width:720px){.grid.cols-3{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <div class="brand">Inventory Management System</div>
+    <div class="nav-actions">
+      <button onclick="go('index.html')">Home</button>
+      <button onclick="go('view-items.html')">View Items</button>
+      <button onclick="go('add-item.html')">Add Item</button>
+      <button onclick="go('suppliers.html')">Suppliers</button>
+      <button id="exportBtn" onclick="exportJSON()">Export JSON</button>
+      <button id="importBtn" onclick="document.getElementById('fileInput').click()">Import JSON</button>
+      <input type="file" id="fileInput" accept="application/json" style="display:none" onchange="handleImport(event)">
+    </div>
+  </div>
+  <script>
+    function go(path){ window.location.href = path; }
+
+    // Shared storage helpers
+    function getStoredItems(){
+      const raw = localStorage.getItem('items');
+      if(!raw) return [];
+      try{ return JSON.parse(raw); } catch(e){ console.error('parse items',e); return []; }
+    }
+    function saveItems(items){ localStorage.setItem('items', JSON.stringify(items)); }
+
+    function getStoredSuppliers(){
+      const raw = localStorage.getItem('suppliers');
+      if(!raw) return [];
+      try{ return JSON.parse(raw); } catch(e){ console.error('parse suppliers',e); return []; }
+    }
+    function saveSuppliers(suppliers){ localStorage.setItem('suppliers', JSON.stringify(suppliers)); }
+
+    function exportJSON(){
+      const payload = { exportedAt: new Date().toISOString(), items: getStoredItems(), suppliers: getStoredSuppliers() };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      const name = 'inventory_export_' + new Date().toISOString().slice(0,19).replace(/[:T]/g,'-') + '.json';
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function handleImport(ev){
+      const f = ev.target.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=> {
+        try{
+          const data = JSON.parse(reader.result);
+          if(!confirm('Replace local data with imported file? Click OK to replace, Cancel to merge.')) {
+            // merge
+            if(Array.isArray(data.items)) {
+              const existingItems = getStoredItems();
+              const merged = existingItems.concat(data.items.filter(it=> !existingItems.some(e=>e.id===it.id)));
+              saveItems(merged);
+            }
+            if(Array.isArray(data.suppliers)) {
+              const existing = getStoredSuppliers();
+              const merged = existing.concat(data.suppliers.filter(s=> !existing.some(e=>e.id===s.id)));
+              saveSuppliers(merged);
+            }
+            alert('Merged imported data.');
+            return;
+          }
+          // replace
+          if(Array.isArray(data.items)) saveItems(data.items); else saveItems([]);
+          if(Array.isArray(data.suppliers)) saveSuppliers(data.suppliers); else saveSuppliers([]);
+          alert('Imported and replaced data successfully.');
+          location.reload();
+        }catch(e){
+          alert('Failed to parse JSON: ' + e.message);
+        }
+      };
+      reader.readAsText(f);
+      ev.target.value = '';
+    }
+  </script>
+
+  <div class="container">
+    <div class="card grid cols-3">
+      <div>
+        <h2>📦 View Items</h2>
+        <p class="small">See all products in stock with details and quantities.</p>
+        <div style="margin-top:10px"><button class="btn primary" onclick="go('view-items.html')">Open</button></div>
+      </div>
+      <div>
+        <h2>➕ Add New Item</h2>
+        <p class="small">Register new inventory items quickly and easily.</p>
+        <div style="margin-top:10px"><button class="btn primary" onclick="go('add-item.html')">Add Item</button></div>
+      </div>
+      <div>
+        <h2>🏭 Suppliers</h2>
+        <p class="small">Manage supplier information and contact details.</p>
+        <div style="margin-top:10px"><button class="btn primary" onclick="go('suppliers.html')">Manage</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Overview</h2>
+      <div class="grid cols-3" style="margin-top:12px">
+        <div>
+          <div class="small">Total Items</div>
+          <div id="statItems" style="font-size:20px; font-weight:700">0</div>
+        </div>
+        <div>
+          <div class="small">Total Suppliers</div>
+          <div id="statSuppliers" style="font-size:20px; font-weight:700">0</div>
+        </div>
+        <div>
+          <div class="small">Total Value</div>
+          <div id="statValue" style="font-size:20px; font-weight:700">₱0.00</div>
+        </div>
+      </div>
+    </div>
+    <footer>© 2025 Inventory Management System | All Rights Reserved</footer>
+  </div>
+</body>
+</html>
