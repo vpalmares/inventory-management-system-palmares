@@ -151,4 +151,28 @@
     <footer>© 2025 Inventory Management System | All Rights Reserved</footer>
   </div>
 </body>
+  <script>
+  function updateOverview(){
+    const items = getStoredItems();
+    const suppliers = getStoredSuppliers();
+
+    // Update counts
+    document.getElementById("statItems").textContent = items.length;
+    document.getElementById("statSuppliers").textContent = suppliers.length;
+
+    // Compute total value
+    let total = items.reduce((sum, item) =>
+      sum + (Number(item.quantity) || 0) * (Number(item.price) || 0)
+    , 0);
+
+    document.getElementById("statValue").textContent =
+      "₱" + total.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+  }
+
+  document.addEventListener("DOMContentLoaded", updateOverview);
+</script>
+
 </html>
